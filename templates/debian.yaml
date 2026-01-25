@@ -1,0 +1,32 @@
+# Engwrap Template Configuration
+
+# name: The default name for containers created from this template (can be overridden with -n)
+name: debian-lab
+
+# image: The Docker image to use (must be pullable from Docker Hub or local registry)
+image: debian:bookworm-slim
+
+# network_mode: 'bridge' (default) or 'host'.
+network_mode: bridge
+
+# mounts: Bind mount local host directories into the container.
+# Format: /path/on/host:/path/in/container
+# Note: These are mounted as Read-Only by default logic in implementation.
+mounts:
+  # - /home/username/wordlists:/usr/share/wordlists
+  # - /tmp/share:/opt/share
+
+# init_commands: List of commands to run immediately after container creation.
+# Useful for installing tools not in the base image.
+init_commands:
+  - apt-get update
+  - apt-get install -y curl wget git iproute2 net-tools procps
+  # Clean up to keep layer size down (optional in this context since it's a running container)
+  - apt-get clean
+
+# bashrc_customs: Custom shell configuration to append to .bashrc
+bashrc_customs:
+  - alias ll='ls -la'
+  - export PATH=$PATH:/opt/tools
+  # Custom prompt to show environment name and timestamp - good for screenshots :)
+  - export PS1="\[\033[01;32m\]\u@${ENV_NAME}\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
