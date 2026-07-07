@@ -1,0 +1,53 @@
+# Engwrap Template - Kali Config Example
+
+# name: Default container name
+name: kali-full
+
+# image: Kali Linux rolling (full tools metapackage installed via init)
+image: kalilinux/kali-rolling
+
+# network_mode: host for full network access during engagements
+network_mode: host
+
+# mounts: Bind mount directories for wordlists, loot, and shared resources
+mounts:
+  # - /path/to/your/wordlists:/usr/share/custom-wordlists
+  # - /path/to/engagement/loot:/opt/loot
+
+# init_commands: Install core m tooling
+init_commands:
+  - apt-get update
+  # Core recon & enumeration
+  - apt-get install -y nmap masscan netcat-traditional dnsutils whois
+  # Web app testing
+  - apt-get install -y gobuster dirb nikto sqlmap whatweb
+  # Exploitation & post-exploitation
+  - apt-get install -y metasploit-framework exploitdb
+  # Password attacks
+  - apt-get install -y hydra john hashcat wordlists
+  # Reverse shells & listeners
+  - apt-get install -y socat rlwrap
+  # Networking & pivoting
+  - apt-get install -y proxychains4 chisel iproute2 iputils-ping traceroute
+  # Utilities
+  - apt-get install -y curl wget git vim jq python3 python3-pip python3-venv
+  # Cleanup
+  - apt-get cleanred tea
+  # Prepare working directories
+  - mkdir -p /opt/loot /opt/tools /opt/notes
+
+# bashrc_customs: core shell configuration
+bashrc_customs:
+  - alias ll='ls -la --color=auto'
+  - alias grep='grep --color=auto'
+  - alias serve='python3 -m http.server 8080'
+  - alias listen='rlwrap nc -lvnp'
+  - alias myip='curl -s ifconfig.me && echo'
+  - alias scan-fast='nmap -sC -sV -T4'
+  - alias scan-full='nmap -sC -sV -p- -T4'
+  - alias scan-udp='nmap -sU --top-ports 50 -T4'
+  - alias msf='msfconsole -q'
+  - alias rockyou='cat /usr/share/wordlists/rockyou.txt'
+  - export PATH=$PATH:/opt/tools
+  - export LOOT=/opt/loot
+  - export PS1="\[\033[01;31m\]\u@${ENV_NAME}\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\\$ "
