@@ -3,7 +3,10 @@ package engwrap
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -31,7 +34,15 @@ type DockerClient struct {
 }
 
 func NewDockerClient() (*DockerClient, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
+
+	if os.Getenv("DOCKER_HOST") == "" {
+		if host := resolveDockerContextHost(); host != "" {
+			opts = append(opts, client.WithHost(host))
+		}
+	}
+
+	cli, err := client.NewClientWithOpts(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -39,6 +50,62 @@ func NewDockerClient() (*DockerClient, error) {
 	return &DockerClient{
 		cli: cli,
 	}, nil
+}
+
+// resolveDockerContextHost reads the active Docker CLI context to find the
+// daemon endpoint. Returns "" if the context is "default" or unreadable.
+//
+// This mirrors docker/cli's on-disk context store (the sha256-of-name meta
+// directory and meta.json shape); if that layout changes upstream this falls
+// back to "" and the default socket. It also honors the same precedence the
+// CLI uses when DOCKER_HOST is unset: DOCKER_CONTEXT > config.json currentContext.
+func resolveDockerContextHost() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	ctxName := os.Getenv("DOCKER_CONTEXT")
+	if ctxName == "" {
+		data, err := os.ReadFile(filepath.Join(home, ".docker", "config.json"))
+		if err != nil {
+			return ""
+		}
+		var cfg struct {
+			CurrentContext string `json:"currentContext"`
+		}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return ""
+		}
+		ctxName = cfg.CurrentContext
+	}
+
+	if ctxName == "" || ctxName == "default" {
+		return ""
+	}
+
+	hash := sha256.Sum256([]byte(ctxName))
+	ctxDir := hex.EncodeToString(hash[:])
+	metaPath := filepath.Join(home, ".docker", "contexts", "meta", ctxDir, "meta.json")
+
+	metaData, err := os.ReadFile(metaPath)
+	if err != nil {
+		return ""
+	}
+
+	var meta struct {
+		Endpoints map[string]struct {
+			Host string `json:"Host"`
+		} `json:"Endpoints"`
+	}
+	if err := json.Unmarshal(metaData, &meta); err != nil {
+		return ""
+	}
+
+	if ep, ok := meta.Endpoints["docker"]; ok && ep.Host != "" {
+		return ep.Host
+	}
+	return ""
 }
 
 func (dc *DockerClient) Close() error {
